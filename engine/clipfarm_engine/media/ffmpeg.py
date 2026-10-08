@@ -20,10 +20,29 @@ def _bin(name: str) -> str:
     return path
 
 
-def run(args: list[str], cwd: str | Path | None = None) -> str:
+_NVENC_AVAILABLE: bool | None = None
+
+
+def has_nvenc() -> bool:
+    """Vérifie si l'encodeur matériel NVIDIA NVENC (h264_nvenc) est disponible."""
+    global _NVENC_AVAILABLE
+    if _NVENC_AVAILABLE is None:
+        try:
+            cmd = [_bin("ffmpeg"), "-hide_banner", "-encoders"]
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=5, encoding="utf-8", errors="replace")
+            _NVENC_AVAILABLE = "h264_nvenc" in res.stdout
+        except Exception:
+            _NVENC_AVAILABLE = False
+    return _NVENC_AVAILABLE
+
+
+def run(args: list[str], cwd: str | Path | None = None, timeout: int = 300) -> str:
     """Run ffmpeg with args, return stderr (ffmpeg logs there). Raises on failure."""
     cmd = [_bin("ffmpeg"), "-hide_banner", "-nostdin", "-y", *args]
-    proc = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    try:
+        proc = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
+    except subprocess.TimeoutExpired:
+        raise FFmpegError(f"ffmpeg a dépassé le délai imparti ({timeout}s) et a été interrompu.")
     if proc.returncode != 0:
         tail = "\n".join(proc.stderr.strip().splitlines()[-15:])
         raise FFmpegError(f"ffmpeg a echoue ({proc.returncode}):\n{tail}")

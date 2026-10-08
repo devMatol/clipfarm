@@ -21,6 +21,16 @@ def get_clip(id: str, session: Session = Depends(get_session)) -> dict[str, Any]
     if not clip:
         raise HTTPException(status_code=404, detail="Clip introuvable")
 
+    if clip.status == "rendering" and clip.file_path and Path(clip.file_path).is_file():
+        try:
+            if Path(clip.file_path).stat().st_size > 100_000:
+                clip.status = "ready"
+                session.add(clip)
+                session.commit()
+                session.refresh(clip)
+        except Exception:
+            pass
+
     data = clip.model_dump()
     if clip.file_path:
         try:

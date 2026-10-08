@@ -1,6 +1,7 @@
-import numpy as np
-import cv2
 import pytest
+
+np = pytest.importorskip("numpy")
+cv2 = pytest.importorskip("cv2")
 from pathlib import Path
 from clipfarm_engine.vision.facecam import (
     FaceBox,

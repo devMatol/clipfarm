@@ -41,19 +41,30 @@ def render_clip(
         "-1",
         "-map_chapters",
         "-1",
-        "-c:v",
-        "libx264",
-        "-preset",
-        "fast",
-        "-crf",
-        str(crf),
+    ]
+    if ffmpeg.has_nvenc():
+        args += ["-c:v", "h264_nvenc", "-preset", "fast", "-cq", str(crf)]
+    else:
+        args += ["-c:v", "libx264", "-preset", "fast", "-crf", str(crf)]
+
+    args += [
         "-pix_fmt",
         "yuv420p",
         "-movflags",
         "+faststart",
         str(out),
     ]
-    ffmpeg.run(args, cwd=cwd)
+
+    try:
+        ffmpeg.run(args, cwd=cwd)
+    except ffmpeg.FFmpegError:
+        if ffmpeg.has_nvenc():
+            # Repli de secours sur libx264 si NVENC échoue
+            idx = args.index("-c:v")
+            args[idx : idx + 4] = ["-c:v", "libx264", "-preset", "fast", "-crf", str(crf)]
+            ffmpeg.run(args, cwd=cwd)
+        else:
+            raise
     return out
 
 
