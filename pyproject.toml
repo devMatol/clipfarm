@@ -1,0 +1,28 @@
+[project]
+name = "clipfarm"
+version = "0.1.0"
+description = "ClipFarm : vidéo longue -> clips verticaux IA"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "clipfarm-engine",
+    "clipfarm-api",
+]
+
+[project.optional-dependencies]
+ai = ["clipfarm-engine[ai]"]
+vision = ["clipfarm-engine[vision]"]
+dev = ["clipfarm-engine[dev]", "clipfarm-api[dev]"]
+
+[tool.uv.workspace]
+members = ["engine", "api"]
+
+[tool.uv.sources]
+clipfarm-engine = { workspace = true }
+clipfarm-api = { workspace = true }
+torch = { index = "pytorch-cu128" }
+torchaudio = { index = "pytorch-cu128" }
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true

@@ -1,0 +1,23 @@
+{
+  "source": "engine/tests/golden/gta6_sample_25s.mp4",
+  "moments": [
+    {
+      "start": 3.0,
+      "end": 18.5,
+      "why": "Fusillade surprise avec 'Stay down!' et réaction du streamer 'j'allais prendre la manette!'"
+    }
+  ],
+  "transcript_ref": [
+    {
+      "start": 4.35,
+      "end": 6.15,
+      "text": "Holy shit Stay down"
+    },
+    {
+      "start": 7.75,
+      "end": 9.05,
+      "text": "Non mais j allais prendre la manette"
+    }
+  ],
+  "cam": [0.739, 0.083, 0.246, 0.245]
+}

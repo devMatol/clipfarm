@@ -1,0 +1,10 @@
+{
+  "source": "C:/Users/matth/Videos/stream/ma_video.mp4",
+  "moments": [
+    {"start": 545, "end": 585, "why": "reaction forte, exemple a remplacer"}
+  ],
+  "transcript_ref": [
+    {"start": 550.0, "end": 556.0, "text": "ce que dit vraiment le streamer, tape a la main"}
+  ],
+  "cam": [0.739, 0.083, 0.246, 0.245]
+}

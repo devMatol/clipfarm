@@ -1,0 +1,34 @@
+# Environnement et secrets
+.env
+*.env
+*.env.local
+*.pem
+*.key
+
+# Données locales et médias
+data/
+infra/pgsql/
+MiniMax-H3-main/
+check.png
+scratch_*.*
+*.log
+
+# Caches et dépendances Python
+**/.venv/
+**/.pytest_cache/
+**/__pycache__/
+*.pyc
+
+# Caches et dépendances Web
+**/node_modules/
+.next/
+apps/web/.next/
+
+# Vidéos et médias générés
+*.mp4
+*.mkv
+*.wav
+engine/tests/golden/*.mp4
+
+# Fichiers de test temporaires
+apps/web/verify_calendar.js

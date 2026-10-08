@@ -1,0 +1,32 @@
+# Services d'infrastructure. Le moteur Python tourne en natif sur Windows pour acceder au GPU.
+# Lancer : docker compose -f infra/docker-compose.yml up -d
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: clipfarm
+      POSTGRES_PASSWORD: clipfarm
+      POSTGRES_DB: clipfarm
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clipfarm"]
+      interval: 5s
+      retries: 10
+
+  # Interface web pour regarder la base (http://localhost:8081)
+  adminer:
+    image: adminer
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    profiles: ["tools"]
+
+# Phase 6 : Postiz (publication multi-plateformes) se deploie avec son propre compose,
+# voir docs/02-architecture.md section Publication.
+
+volumes:
+  pgdata:
