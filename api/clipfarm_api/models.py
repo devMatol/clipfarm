@@ -154,6 +154,8 @@ class PublicationCreate(SQLModel):
     rights_confirmed: bool = False
     publish_now: bool = True
     scheduled_at: Optional[datetime] = None
+    predictive_score: Optional[int] = None
+    algorithmic_reason: Optional[str] = None
 
 
 class PublicationOut(SQLModel):

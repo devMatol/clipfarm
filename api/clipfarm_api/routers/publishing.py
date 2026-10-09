@@ -276,6 +276,8 @@ async def publish_clip(
         "privacy": req.privacy,
         "made_for_kids": req.made_for_kids,
         "category_id": req.category_id,
+        "predictive_score": req.predictive_score,
+        "algorithmic_reason": req.algorithmic_reason,
     }
 
     pub = Publication(

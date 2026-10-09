@@ -240,12 +240,33 @@ export const api = {
       scheduled_at?: string | null;
       publish_now?: boolean;
       rights_confirmed: boolean;
+      predictive_score?: number;
+      algorithmic_reason?: string;
     }
   ) =>
     fetchApi<Publication>(`/clips/${clipId}/publish`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ clip_id: clipId, ...payload }),
+    }),
+
+  predictClipSlots: (clipId: string, platform: string = "youtube") =>
+    fetchApi<{
+      summary?: string;
+      predictions?: Array<{
+        clip_id: string;
+        platform: string;
+        suggested_time: string;
+        day_name: string;
+        slot_name: string;
+        predictive_score: number;
+        algorithmic_reason: string;
+        viral_title?: string;
+        viral_description?: string;
+        viral_tags?: string[];
+      }>;
+    }>(`/clips/${clipId}/predict-slots?platform=${platform}`, {
+      method: "POST",
     }),
 
   getPublications: (clipId?: string) =>

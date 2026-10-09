@@ -510,6 +510,28 @@ def predict_best_slots_for_clip(
         for p in existing_pubs
     ]
 
+    creator_name = ""
+    source_title = ""
+    meta_file = pdir / "metadata.json"
+    if meta_file.exists():
+        try:
+            m = json.loads(meta_file.read_text(encoding="utf-8"))
+            creator_name = m.get("uploader") or m.get("channel") or ""
+            source_title = m.get("title") or ""
+        except Exception:
+            pass
+    if not creator_name or not source_title:
+        info_file = pdir / "source.info.json"
+        if info_file.exists():
+            try:
+                inf = json.loads(info_file.read_text(encoding="utf-8"))
+                if not creator_name:
+                    creator_name = inf.get("uploader") or inf.get("channel") or ""
+                if not source_title:
+                    source_title = inf.get("title") or inf.get("fulltitle") or ""
+            except Exception:
+                pass
+
     clip_dict = {
         "id": clip.id,
         "index": clip.index,
@@ -518,6 +540,8 @@ def predict_best_slots_for_clip(
         "reason": clip.reason,
         "start": clip.start,
         "end": clip.end,
+        "creator_name": creator_name,
+        "source_title": source_title,
         "scores": clip.scores or {},
         "transcript": transcript,
     }
