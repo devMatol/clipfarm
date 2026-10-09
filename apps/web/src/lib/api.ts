@@ -199,6 +199,18 @@ export const api = {
     });
   },
 
+  getPostizStatus: () =>
+    fetchApi<{
+      configured: boolean;
+      reachable: boolean;
+      authenticated: boolean;
+      url: string;
+      message: string;
+      channels: any[];
+    }>("/accounts/postiz/status"),
+
+  syncPostiz: () => fetchApi<Account[]>("/accounts/postiz/sync", { method: "POST" }),
+
   generatePublishMetadata: (clipId: string, platform: string = "youtube") =>
     fetchApi<PublishMetadata>(`/clips/${clipId}/metadata?platform=${platform}`, {
       method: "POST",

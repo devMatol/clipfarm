@@ -197,6 +197,15 @@ def validate_publication_payload(
             "errors": res.errors,
             "warnings": res.warnings,
         }
+    elif req.platform in ("tiktok", "postiz", "instagram"):
+        from ..publishing.postiz import PostizPublisher
+        publisher = PostizPublisher()
+        res = publisher.validate(payload, video_path)
+        return {
+            "valid": res.valid,
+            "errors": res.errors,
+            "warnings": res.warnings,
+        }
 
     return {"valid": True, "errors": [], "warnings": []}
 
@@ -260,10 +269,14 @@ async def publish_clip(
     idempotency_key = hashlib.sha256(raw_key.encode("utf-8")).hexdigest()[:16]
 
     # Vérifier l'adaptateur
-    if req.platform != "youtube":
-        raise HTTPException(status_code=400, detail=f"Plateforme '{req.platform}' non encore supportée dans cette étape.")
+    if req.platform == "youtube":
+        publisher = YouTubePublisher()
+    elif req.platform in ("tiktok", "postiz", "instagram"):
+        from ..publishing.postiz import PostizPublisher
+        publisher = PostizPublisher()
+    else:
+        raise HTTPException(status_code=400, detail=f"Plateforme '{req.platform}' non encore supportée.")
 
-    publisher = YouTubePublisher()
     validation = publisher.validate(payload, video_path)
     if not validation.valid:
         raise HTTPException(status_code=400, detail=" ; ".join(validation.errors))

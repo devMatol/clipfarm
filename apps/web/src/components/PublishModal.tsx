@@ -85,12 +85,25 @@ export function PublishModal({ clip, isOpen, onClose }: PublishModalProps) {
     scheduled_at?: string | null;
   } | null>(null);
 
-  // Sélectionner le premier compte par défaut
+  // Sélectionner le premier compte par défaut et synchroniser la plateforme
   useEffect(() => {
-    if (accounts.length > 0 && !selectedAccountId) {
-      setSelectedAccountId(accounts[0].id);
+    if (accounts.length > 0) {
+      const current = accounts.find((a) => a.id === selectedAccountId) || accounts[0];
+      if (!selectedAccountId) {
+        setSelectedAccountId(current.id);
+      }
+      if (current.platform !== platform) {
+        setPlatform(current.platform);
+        if (current.platform === "tiktok") {
+          setTagsStr("tiktok,pourtoi,fyp,shorts");
+          setTitle((prev) => prev.replace("#Shorts", "#TikTok"));
+        } else if (current.platform === "youtube") {
+          setTagsStr("shorts,clipfarm");
+          setTitle((prev) => prev.replace("#TikTok", "#Shorts"));
+        }
+      }
     }
-  }, [accounts, selectedAccountId]);
+  }, [accounts, selectedAccountId, platform]);
 
   // Charger les créneaux IA à l'ouverture du modal
   useEffect(() => {
@@ -475,9 +488,9 @@ export function PublishModal({ clip, isOpen, onClose }: PublishModalProps) {
               </div>
             ) : accounts.length === 0 ? (
               <div className="p-6 rounded-2xl border border-dashed border-border/80 bg-zinc-900/40 text-center space-y-3">
-                <p className="text-sm font-semibold text-white">Aucun compte YouTube connecté</p>
+                <p className="text-sm font-semibold text-white">Aucun compte connecté</p>
                 <p className="text-xs text-muted-foreground max-w-md mx-auto">
-                  Tu dois connecter ta chaîne YouTube dans l&apos;onglet Comptes avant de pouvoir publier ou programmer.
+                  Tu dois connecter ta chaîne YouTube ou ton compte TikTok (via Postiz) dans l&apos;onglet Comptes avant de pouvoir publier.
                 </p>
                 <Link
                   href="/accounts"
@@ -492,8 +505,11 @@ export function PublishModal({ clip, isOpen, onClose }: PublishModalProps) {
               <div className="space-y-4">
                 {/* Choix du compte */}
                 <div>
-                  <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
-                    Chaîne YouTube de destination
+                  <label className="block text-xs font-semibold text-zinc-300 mb-1.5 flex items-center justify-between">
+                    <span>Compte de destination</span>
+                    <span className="text-[11px] font-normal text-purple-400 capitalize">
+                      Plateforme : {platform === "youtube" ? "YouTube Shorts" : platform === "tiktok" ? "TikTok (Postiz)" : platform}
+                    </span>
                   </label>
                   <select
                     value={selectedAccountId}
@@ -502,7 +518,7 @@ export function PublishModal({ clip, isOpen, onClose }: PublishModalProps) {
                   >
                     {accounts.map((acc) => (
                       <option key={acc.id} value={acc.id}>
-                        {acc.name} ({acc.platform})
+                        {acc.name} ({acc.platform === "youtube" ? "YouTube" : acc.platform === "tiktok" ? "TikTok via Postiz" : acc.platform})
                       </option>
                     ))}
                   </select>

@@ -437,6 +437,19 @@ def execute_scheduled_publication(publication_id: str) -> None:
                 else:
                     pub.status = "failed"
                     pub.error = res.error
+            elif pub.platform in ("tiktok", "postiz", "instagram"):
+                from .publishing.postiz import PostizPublisher
+                publisher = PostizPublisher()
+                res = asyncio.run(publisher.upload(tokens, payload, video_path))
+                if res.success:
+                    pub.status = "published"
+                    pub.external_id = res.external_id
+                    pub.url = res.url
+                    pub.published_at = datetime.now(timezone.utc)
+                    pub.error = None
+                else:
+                    pub.status = "failed"
+                    pub.error = res.error
             else:
                 pub.status = "failed"
                 pub.error = f"Plateforme {pub.platform} non supportée"

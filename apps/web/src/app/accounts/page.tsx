@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Account } from "@/lib/types";
 import { YouTubeIcon } from "@/components/icons/YouTubeIcon";
+import { TikTokIcon } from "@/components/icons/TikTokIcon";
 import {
   Trash2,
   ExternalLink,
@@ -16,17 +17,26 @@ import {
   Clock,
   FlaskConical,
   Info,
+  Server,
+  Share2,
+  Sparkles,
 } from "lucide-react";
 
 export default function AccountsPage() {
   const queryClient = useQueryClient();
   const [connecting, setConnecting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [showConfigHelp, setShowConfigHelp] = useState(false);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [showPostizGuide, setShowPostizGuide] = useState(false);
 
-  const { data: accounts, isLoading, error } = useQuery({
+  const { data: accounts, isLoading } = useQuery({
     queryKey: ["accounts"],
     queryFn: () => api.getAccounts(),
+  });
+
+  const { data: postizStatus, refetch: refetchPostizStatus } = useQuery({
+    queryKey: ["postizStatus"],
+    queryFn: () => api.getPostizStatus(),
   });
 
   const deleteMutation = useMutation({
@@ -40,14 +50,41 @@ export default function AccountsPage() {
   });
 
   const createTestMutation = useMutation({
-    mutationFn: (platform: string) =>
-      api.createTestAccount(platform, `Chaîne Démo (${platform === "youtube" ? "YouTube" : platform})`),
+    mutationFn: (platform: string) => {
+      const defaultName =
+        platform === "youtube"
+          ? "Chaîne Démo (YouTube)"
+          : platform === "tiktok"
+          ? "TikTok Démo (@clipfarm_test)"
+          : `Compte Démo (${platform})`;
+      return api.createTestAccount(platform, defaultName);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["accounts"] });
       setErrorMsg(null);
+      setSuccessMsg("Compte de test créé avec succès !");
+      setTimeout(() => setSuccessMsg(null), 3000);
     },
     onError: (err: any) => {
       setErrorMsg(err.message || "Erreur création compte test");
+    },
+  });
+
+  const syncPostizMutation = useMutation({
+    mutationFn: () => api.syncPostiz(),
+    onSuccess: (synced) => {
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      refetchPostizStatus();
+      setErrorMsg(null);
+      if (synced.length === 0) {
+        setSuccessMsg("Postiz synchronisé : aucun nouveau canal détecté.");
+      } else {
+        setSuccessMsg(`Succès : ${synced.length} canal(aux) synchronisé(s) depuis Postiz !`);
+      }
+      setTimeout(() => setSuccessMsg(null), 4000);
+    },
+    onError: (err: any) => {
+      setErrorMsg("Échec de la synchronisation Postiz : " + (err.message || String(err)));
     },
   });
 
@@ -94,43 +131,117 @@ export default function AccountsPage() {
     }
   };
 
+  const hasTikTokAccount = accounts?.some((a) => a.platform === "tiktok");
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 max-w-6xl">
       {/* En-tête */}
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-white">Comptes & Réseaux Sociaux</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-3">
+          <span>Comptes & Réseaux Sociaux</span>
+        </h1>
         <p className="mt-2 text-sm text-muted-foreground max-w-3xl leading-relaxed">
-          Gère tes comptes de publication pour YouTube, TikTok et Instagram. Tes jetons d&apos;authentification
+          Gère tes comptes de publication pour YouTube Shorts, TikTok et Instagram. Tes jetons d&apos;authentification
           sont chiffrés en local (AES-128-CBC Fernet) et ne quittent jamais ton ordinateur.
         </p>
       </div>
 
+      {/* Messages de statut / feedback */}
       {errorMsg && (
-        <div className="p-4 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-200 text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
-            <div>
-              <p className="font-semibold">Erreur de connexion</p>
-              <p className="mt-0.5 text-xs text-rose-300">{errorMsg}</p>
-              {errorMsg.toLowerCase().includes("client_id") && (
-                <p className="mt-2 text-xs text-rose-200/90 leading-relaxed">
-                  Pour connecter un vrai compte, configurez <code>YOUTUBE_CLIENT_ID</code> et{" "}
-                  <code>YOUTUBE_CLIENT_SECRET</code> dans votre fichier <code>.env</code>. Vous pouvez
-                  aussi créer un compte de test ci-contre pour tester l&apos;application sans attendre.
-                </p>
-              )}
-            </div>
+        <div className="p-4 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-200 text-sm flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-semibold">Erreur</p>
+            <p className="mt-0.5 text-xs text-rose-300">{errorMsg}</p>
           </div>
-          <button
-            onClick={() => createTestMutation.mutate("youtube")}
-            disabled={createTestMutation.isPending}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold shrink-0 transition"
-          >
-            <FlaskConical className="w-3.5 h-3.5" />
-            <span>Créer un compte de test</span>
-          </button>
         </div>
       )}
+
+      {successMsg && (
+        <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-200 text-sm flex items-center gap-3 animate-in fade-in">
+          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+          <p className="font-medium text-xs sm:text-sm">{successMsg}</p>
+        </div>
+      )}
+
+      {/* BANNIÈRE HUB POSTIZ (Intégration Intelligente) */}
+      <div className="p-5 rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-cyan-950/20 via-zinc-950/40 to-purple-950/20 backdrop-blur-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0">
+              <Share2 className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-white text-base">Passerelle Postiz (TikTok, Instagram, Multi-réseaux)</h3>
+                {postizStatus?.reachable && postizStatus?.authenticated ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    🟢 Actif & Connecté
+                  </span>
+                ) : postizStatus?.reachable ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    🟡 Service en ligne (Clé API requise)
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-zinc-800 text-zinc-400 border border-zinc-700">
+                    ⚪ Service autonome optionnel
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-zinc-400 mt-0.5 leading-relaxed">
+                Postiz permet de relier TikTok sans complexité de développement ni audit bloquant.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowPostizGuide(!showPostizGuide)}
+              className="px-3 py-1.5 rounded-lg border border-border/70 bg-zinc-900/60 text-zinc-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition"
+            >
+              <Info className="w-3.5 h-3.5 text-cyan-400" />
+              <span>{showPostizGuide ? "Masquer le guide" : "Comment lancer Postiz"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => syncPostizMutation.mutate()}
+              disabled={syncPostizMutation.isPending}
+              className="px-3.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-cyan-900/30 transition disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${syncPostizMutation.isPending ? "animate-spin" : ""}`} />
+              <span>Synchroniser les canaux Postiz</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Guide déploiement Postiz accordéon */}
+        {showPostizGuide && (
+          <div className="p-4 rounded-xl bg-zinc-950/80 border border-cyan-500/20 text-xs text-zinc-300 space-y-3 animate-in fade-in">
+            <p className="font-semibold text-cyan-300 flex items-center gap-1.5">
+              <Server className="w-4 h-4" />
+              Démarrer Postiz en local en 1 commande :
+            </p>
+            <div className="p-2.5 rounded-lg bg-zinc-900 font-mono text-[11px] text-zinc-200 border border-zinc-800 select-all">
+              docker compose -f infra/postiz/docker-compose.yml up -d
+            </div>
+            <ol className="list-decimal list-inside space-y-1 text-zinc-400 text-[11px]">
+              <li>
+                Ouvrez <a href="http://localhost:4200" target="_blank" rel="noreferrer" className="text-cyan-400 underline font-mono">http://localhost:4200</a> et créez votre profil.
+              </li>
+              <li>
+                Allez dans <strong>Integrations</strong> pour relier votre compte TikTok (ou Instagram).
+              </li>
+              <li>
+                Dans <strong>Settings &gt; API</strong>, copiez votre clé API et ajoutez dans <code>.env</code> : <code>POSTIZ_API_KEY=votre_cle</code>.
+              </li>
+              <li>
+                Revenez ici et cliquez sur <strong>Synchroniser les canaux Postiz</strong> !
+              </li>
+            </ol>
+          </div>
+        )}
+      </div>
 
       {/* Liste des comptes connectés */}
       <section className="space-y-4">
@@ -159,6 +270,10 @@ export default function AccountsPage() {
                       alt={acc.name}
                       className="w-12 h-12 rounded-full border border-border shrink-0 object-cover"
                     />
+                  ) : acc.platform === "tiktok" ? (
+                    <div className="w-12 h-12 rounded-full bg-cyan-600/20 text-cyan-400 flex items-center justify-center shrink-0 border border-cyan-500/30">
+                      <TikTokIcon className="w-6 h-6" />
+                    </div>
                   ) : (
                     <div className="w-12 h-12 rounded-full bg-red-600/20 text-red-400 flex items-center justify-center shrink-0 border border-red-500/30">
                       <YouTubeIcon className="w-6 h-6" />
@@ -175,7 +290,7 @@ export default function AccountsPage() {
                         {acc.platform}
                       </span>
                       <span>•</span>
-                      <span>ID: {acc.platform_account_id}</span>
+                      <span className="truncate">ID: {acc.platform_account_id}</span>
                     </div>
                   </div>
                 </div>
@@ -197,7 +312,7 @@ export default function AccountsPage() {
           </div>
         ) : (
           <div className="p-8 text-center text-muted-foreground border border-dashed border-border/60 rounded-xl bg-card/20">
-            Aucun compte connecté pour l&apos;instant. Connecte un compte ci-dessous pour commencer à publier.
+            Aucun compte connecté pour l&apos;instant. Connecte un compte ci-dessous ou ajoute un compte de test pour commencer.
           </div>
         )}
       </section>
@@ -207,7 +322,7 @@ export default function AccountsPage() {
         <h2 className="text-lg font-semibold text-white">Ajouter un compte</h2>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Carte YouTube */}
+          {/* Carte YouTube Shorts */}
           <div className="p-6 rounded-xl border border-border/60 bg-gradient-to-b from-card/80 to-card/40 flex flex-col justify-between gap-6 transition hover:border-red-500/30">
             <div className="space-y-3">
               <div className="w-10 h-10 rounded-lg bg-red-600/10 border border-red-500/20 text-red-400 flex items-center justify-center">
@@ -216,7 +331,7 @@ export default function AccountsPage() {
               <div>
                 <h3 className="font-semibold text-white text-base">YouTube Shorts</h3>
                 <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                  Publication automatique de Shorts (jusqu&apos;à 3 minutes, 9:16 ou 1:1) sur ta chaîne YouTube avec balises et visibilité.
+                  Publication et programmation directe sur ta chaîne YouTube avec balises #Shorts et choix de visibilité.
                 </p>
               </div>
             </div>
@@ -251,72 +366,99 @@ export default function AccountsPage() {
             </div>
           </div>
 
-          {/* Carte TikTok (Phase 6b) */}
-          <div className="p-6 rounded-xl border border-border/40 bg-card/20 flex flex-col justify-between gap-6 opacity-75">
+          {/* Carte TikTok (via Postiz) */}
+          <div className="p-6 rounded-xl border border-cyan-500/30 bg-gradient-to-b from-cyan-950/20 to-card/40 flex flex-col justify-between gap-6 transition hover:border-cyan-500/60 shadow-lg shadow-cyan-950/20">
             <div className="space-y-3">
-              <div className="w-10 h-10 rounded-lg bg-zinc-800 border border-border/40 text-zinc-400 flex items-center justify-center font-bold text-xs">
-                TT
+              <div className="w-10 h-10 rounded-lg bg-cyan-600/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center">
+                <TikTokIcon className="w-6 h-6" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="font-semibold text-white text-base">TikTok</h3>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 border border-zinc-700">
-                    Étape suivante
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30">
+                    Via Postiz
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                  Content Posting API officielle (Direct Post) avec gestion du consentement musique et interactions.
+                  Publication et programmation automatique vers TikTok. Gère le consentement, les hashtags viraux (#PourToi) et l&apos;audience.
                 </p>
               </div>
             </div>
 
-            <button
-              disabled
-              className="w-full py-2.5 px-4 rounded-lg bg-zinc-800 text-zinc-500 font-medium text-sm cursor-not-allowed"
-            >
-              Disponible à l&apos;étape (b)
-            </button>
+            <div className="space-y-2">
+              <a
+                href="http://localhost:4200/integrations"
+                target="_blank"
+                rel="noreferrer"
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-medium text-sm transition active:scale-95"
+              >
+                <ExternalLink className="w-4 h-4" />
+                <span>Connecter TikTok dans Postiz</span>
+              </a>
+              <button
+                type="button"
+                onClick={() => createTestMutation.mutate("tiktok")}
+                disabled={createTestMutation.isPending}
+                className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg border border-border/80 text-muted-foreground hover:text-white hover:bg-zinc-800 text-xs font-medium transition"
+              >
+                <FlaskConical className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Ajouter un compte Démo TikTok</span>
+              </button>
+            </div>
           </div>
 
-          {/* Carte Instagram (Phase 6b) */}
-          <div className="p-6 rounded-xl border border-border/40 bg-card/20 flex flex-col justify-between gap-6 opacity-75">
+          {/* Carte Instagram Reels (via Postiz) */}
+          <div className="p-6 rounded-xl border border-border/60 bg-gradient-to-b from-card/80 to-card/40 flex flex-col justify-between gap-6 transition hover:border-pink-500/30">
             <div className="space-y-3">
-              <div className="w-10 h-10 rounded-lg bg-zinc-800 border border-border/40 text-zinc-400 flex items-center justify-center font-bold text-xs">
+              <div className="w-10 h-10 rounded-lg bg-pink-600/10 border border-pink-500/20 text-pink-400 flex items-center justify-center font-bold text-xs">
                 IG
               </div>
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="font-semibold text-white text-base">Instagram Reels</h3>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 border border-zinc-700">
-                    Étape suivante
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-pink-500/10 text-pink-400 border border-pink-500/20">
+                    Via Postiz
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                  Meta Graph API pour Reels avec conteneurs vidéo et partage dans le fil principal.
+                  Meta Graph API via Postiz pour Reels avec conteneurs vidéo et partage dans le fil principal.
                 </p>
               </div>
             </div>
 
-            <button
-              disabled
-              className="w-full py-2.5 px-4 rounded-lg bg-zinc-800 text-zinc-500 font-medium text-sm cursor-not-allowed"
-            >
-              Disponible à l&apos;étape (b)
-            </button>
+            <div className="space-y-2">
+              <a
+                href="http://localhost:4200/integrations"
+                target="_blank"
+                rel="noreferrer"
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white font-medium text-sm transition"
+              >
+                <ExternalLink className="w-4 h-4" />
+                <span>Connecter Instagram dans Postiz</span>
+              </a>
+              <button
+                type="button"
+                onClick={() => createTestMutation.mutate("instagram")}
+                disabled={createTestMutation.isPending}
+                className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg border border-border/80 text-muted-foreground hover:text-white hover:bg-zinc-800 text-xs font-medium transition"
+              >
+                <FlaskConical className="w-3.5 h-3.5 text-pink-400" />
+                <span>Ajouter un compte Démo Instagram</span>
+              </button>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Encadré sécurité & confidentialité */}
+      {/* Encadré sécurité & architecture */}
       <div className="p-5 rounded-xl border border-purple-500/20 bg-purple-950/10 text-xs text-purple-200/80 flex items-start gap-3">
         <ShieldCheck className="w-5 h-5 text-purple-400 shrink-0 mt-0.5" />
         <div className="space-y-1">
-          <p className="font-semibold text-purple-300">Confidentialité et sécurité locale stricte</p>
+          <p className="font-semibold text-purple-300">Architecture locale &amp; isolation stricte</p>
           <p className="leading-relaxed">
-            ClipFarm est une application 100% locale. Vos jetons OAuth (Access & Refresh tokens) sont
-            stockés avec un chiffrement symétrique Fernet (AES-128-CBC) dérivé de votre clé locale.
-            Les métadonnées privées (GPS, nom de machine) sont automatiquement purgées de vos vidéos
-            avant tout envoi. Rien n&apos;est publié sans votre accord explicite.
+            ClipFarm communique avec Postiz exclusivement par son API REST locale. Aucun code externe AGPL n&apos;est
+            intégré au moteur. Vos jetons restent chiffrés en AES-128-CBC sur votre machine, et vos vidéos sont
+            automatiquement nettoyées de leurs métadonnées sensibles (GPS, auteur) avant tout upload.
           </p>
         </div>
       </div>

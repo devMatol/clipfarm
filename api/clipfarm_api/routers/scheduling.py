@@ -465,10 +465,13 @@ async def publish_scheduled_now(
     if not tokens:
         raise HTTPException(status_code=401, detail="Jetons de compte invalides")
 
-    if pub.platform != "youtube":
+    if pub.platform == "youtube":
+        publisher = YouTubePublisher()
+    elif pub.platform in ("tiktok", "postiz", "instagram"):
+        from ..publishing.postiz import PostizPublisher
+        publisher = PostizPublisher()
+    else:
         raise HTTPException(status_code=400, detail=f"Plateforme '{pub.platform}' non supportée pour l'envoi direct.")
-
-    publisher = YouTubePublisher()
     video_path = Path(clip.file_path)
     meta = pub.metadata_json or {}
 

@@ -18,7 +18,7 @@ class ApiSettings(BaseModel):
     tiktok_client_secret: str = Field(default_factory=lambda: _env("TIKTOK_CLIENT_SECRET", ""))
     meta_app_id: str = Field(default_factory=lambda: _env("META_APP_ID", ""))
     meta_app_secret: str = Field(default_factory=lambda: _env("META_APP_SECRET", ""))
-    postiz_api_url: str = Field(default_factory=lambda: _env("POSTIZ_API_URL", ""))
+    postiz_api_url: str = Field(default_factory=lambda: _env("POSTIZ_API_URL", "http://localhost:4200"))
     postiz_api_key: str = Field(default_factory=lambda: _env("POSTIZ_API_KEY", ""))
     public_base_url: str = Field(default_factory=lambda: _env("PUBLIC_BASE_URL", "http://localhost:8000"))
 

@@ -58,6 +58,99 @@ def list_accounts(session: Session = Depends(get_session)) -> list[AccountOut]:
     return out
 
 
+@router.get("/postiz/status")
+async def get_postiz_status() -> dict[str, Any]:
+    """Interroge l'état de la connexion avec le service Postiz."""
+    from ..publishing.postiz import PostizPublisher
+    publisher = PostizPublisher()
+    return await publisher.check_health()
+
+
+@router.post("/postiz/sync", response_model=list[AccountOut])
+async def sync_postiz_accounts(session: Session = Depends(get_session)) -> list[AccountOut]:
+    """Synchronise les canaux connectés dans Postiz (TikTok, Instagram...) vers ClipFarm."""
+    from ..publishing.postiz import PostizPublisher
+    publisher = PostizPublisher()
+    if not publisher.is_enabled():
+        raise HTTPException(
+            status_code=400,
+            detail="Postiz n'est pas configuré. Veuillez renseigner POSTIZ_API_KEY dans le fichier .env.",
+        )
+
+    integrations = await publisher.list_integrations()
+    if not integrations:
+        return []
+
+    synced: list[AccountOut] = []
+    now_utc = datetime.now(timezone.utc)
+
+    for item in integrations:
+        raw_platform = (item.get("identifier") or item.get("provider") or "tiktok").lower()
+        # Normalisation de la plateforme
+        if "tiktok" in raw_platform:
+            platform = "tiktok"
+        elif "instagram" in raw_platform or "reels" in raw_platform:
+            platform = "instagram"
+        elif "youtube" in raw_platform:
+            platform = "youtube"
+        else:
+            platform = raw_platform
+
+        item_id = str(item.get("id"))
+        acc_id = f"postiz_{platform}_{item_id}"
+        account_name = item.get("name") or item.get("username") or f"{platform.capitalize()} ({item_id[:6]})"
+        avatar = item.get("picture") or item.get("avatar")
+
+        tokens_data = {
+            "integration_id": item_id,
+            "platform": platform,
+            "provider": raw_platform,
+            "source": "postiz",
+        }
+        encrypted = encrypt_tokens(tokens_data)
+
+        existing = session.get(Account, acc_id)
+        if existing:
+            existing.name = account_name
+            existing.avatar_url = avatar
+            existing.encrypted_tokens = encrypted
+            existing.status = "connected"
+            existing.updated_at = now_utc
+            session.add(existing)
+            session.commit()
+            session.refresh(existing)
+            acc = existing
+        else:
+            acc = Account(
+                id=acc_id,
+                platform=platform,
+                platform_account_id=item_id,
+                name=account_name,
+                avatar_url=avatar,
+                encrypted_tokens=encrypted,
+                status="connected",
+                created_at=now_utc,
+            )
+            session.add(acc)
+            session.commit()
+            session.refresh(acc)
+
+        synced.append(
+            AccountOut(
+                id=acc.id,
+                platform=acc.platform,
+                platform_account_id=acc.platform_account_id,
+                name=acc.name,
+                avatar_url=acc.avatar_url,
+                expires_at=acc.expires_at,
+                status=acc.status,
+                created_at=acc.created_at,
+            )
+        )
+
+    return synced
+
+
 @router.get("/connect/youtube")
 def get_youtube_auth_url(
     redirect_uri: str = Query("http://localhost:3000/accounts/callback"),
