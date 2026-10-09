@@ -366,6 +366,16 @@ def execute_scheduled_publication(publication_id: str) -> None:
         if not pub or pub.status not in ("scheduled", "draft"):
             return
 
+        from datetime import timedelta
+        now_utc = datetime.now(timezone.utc)
+        if pub.scheduled_at and pub.scheduled_at > now_utc + timedelta(seconds=15):
+            # La publication a été décalée dans le futur, replanifier le job
+            execute_scheduled_publication.configure(
+                lock=f"pub_{pub.id}",
+                schedule_at=pub.scheduled_at,
+            ).defer(publication_id=pub.id)
+            return
+
         if not pub.rights_confirmed:
             pub.status = "failed"
             pub.error = "Droits non confirmés"

@@ -377,12 +377,24 @@ async def apply_schedule(
         session.add(pub)
         created_pubs.append(pub_id)
 
+        # Programmer dans la file d'attente Procrastinate
+        if item.scheduled_at:
+            try:
+                from ..queue import execute_scheduled_publication
+                await execute_scheduled_publication.configure(
+                    lock=f"pub_{pub_id}",
+                    schedule_at=item.scheduled_at,
+                ).defer_async(publication_id=pub_id)
+            except Exception as exc:
+                import logging
+                logging.getLogger("clipfarm_api").warning("Erreur programmation tâche Procrastinate: %s", exc)
+
     session.commit()
     return {"ok": True, "count": len(created_pubs), "publication_ids": created_pubs}
 
 
 @router.patch("/publications/{id}/reschedule")
-def reschedule_publication(
+async def reschedule_publication(
     id: str,
     req: RescheduleRequest,
     session: Session = Depends(get_session),
@@ -397,6 +409,26 @@ def reschedule_publication(
 
     pub.scheduled_at = req.scheduled_at
     pub.status = "scheduled"
+
+    # Mettre à jour la file d'attente Procrastinate
+    try:
+        from sqlmodel import text
+        session.exec(
+            text(
+                "DELETE FROM procrastinate_jobs WHERE queue_name = 'publish' "
+                "AND args->>'publication_id' = :pub_id AND status = 'todo'"
+            ),
+            params={"pub_id": pub.id},
+        )
+        from ..queue import execute_scheduled_publication
+        await execute_scheduled_publication.configure(
+            lock=f"pub_{pub.id}",
+            schedule_at=pub.scheduled_at,
+        ).defer_async(publication_id=pub.id)
+    except Exception as exc:
+        import logging
+        logging.getLogger("clipfarm_api").warning("Erreur re-programmation Procrastinate: %s", exc)
+
     session.add(pub)
     session.commit()
 

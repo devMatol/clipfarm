@@ -315,6 +315,17 @@ async def publish_clip(
         session.add(pub)
         session.commit()
         session.refresh(pub)
+    else:
+        # Enregistrement de la tâche différée dans la file Procrastinate
+        try:
+            from ..queue import execute_scheduled_publication
+            await execute_scheduled_publication.configure(
+                lock=f"pub_{pub.id}",
+                schedule_at=pub.scheduled_at,
+            ).defer_async(publication_id=pub.id)
+        except Exception as exc:
+            import logging
+            logging.getLogger("clipfarm_api").warning("Impossible d'enfiler la tâche différée Procrastinate: %s", exc)
 
     return PublicationOut(
         id=pub.id,
@@ -387,5 +398,16 @@ def delete_publication(id: str, session: Session = Depends(get_session)) -> dict
     if not pub:
         raise HTTPException(status_code=404, detail="Publication introuvable")
     session.delete(pub)
+    try:
+        from sqlmodel import text
+        session.exec(
+            text(
+                "DELETE FROM procrastinate_jobs WHERE queue_name = 'publish' "
+                "AND args->>'publication_id' = :pub_id AND status = 'todo'"
+            ),
+            params={"pub_id": id},
+        )
+    except Exception:
+        pass
     session.commit()
     return {"ok": True, "id": id, "message": "Publication supprimée"}
