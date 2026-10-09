@@ -48,13 +48,26 @@ class PostizPublisher(Publisher):
 
     async def check_health(self) -> dict[str, Any]:
         """Vérifie l'état de connexion de l'instance Postiz et la validité de la clé API."""
+        is_server_up = False
+        try:
+            async with httpx.AsyncClient(timeout=3.0, follow_redirects=True) as client:
+                ping_res = await client.get(self.raw_root_url)
+                if ping_res.status_code in (200, 301, 302, 307, 308):
+                    is_server_up = True
+        except Exception:
+            is_server_up = False
+
         if not self.api_key:
             return {
-                "configured": False,
-                "reachable": False,
+                "configured": is_server_up,
+                "reachable": is_server_up,
                 "authenticated": False,
                 "url": self.raw_root_url,
-                "message": "Clé POSTIZ_API_KEY non configurée.",
+                "message": (
+                    "Serveur Postiz actif en local (port 4200) ! Ajoutez votre clé POSTIZ_API_KEY dans .env pour synchroniser."
+                    if is_server_up
+                    else "Serveur Postiz non détecté sur le port 4200."
+                ),
                 "channels": [],
             }
 
