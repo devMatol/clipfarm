@@ -18,7 +18,7 @@ export default function RootLayout({
       <body className="min-h-screen bg-background text-foreground antialiased flex flex-col">
         <Providers>
           <Navbar />
-          <main className="flex-1 container mx-auto max-w-6xl px-4 sm:px-6 py-8">
+          <main className="flex-1 w-full max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
             {children}
           </main>
         </Providers>

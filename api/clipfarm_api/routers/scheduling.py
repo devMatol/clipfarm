@@ -88,6 +88,32 @@ def list_unscheduled_clips(
                 proj_title = f"Projet #{proj.id[:6]}"
 
         duration = round(c.end - c.start, 1) if c.end and c.start else 0.0
+        thumb_url = None
+        vid_url = None
+        if c.file_path:
+            pdir = settings.data_dir / "projects" / c.project_id
+            vid_name = Path(c.file_path).name
+            vid_url = f"http://localhost:8000/media/projects/{c.project_id}/clips/{vid_name}"
+            p_frame = pdir / "preview_frames" / f"clip_{c.index}_vertical.jpg"
+            if not p_frame.exists() and Path(c.file_path).is_file():
+                import subprocess
+                p_frame.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    subprocess.run(
+                        ["ffmpeg", "-y", "-ss", "1.5", "-i", c.file_path, "-frames:v", "1", "-q:v", "3", str(p_frame)],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        timeout=4,
+                    )
+                except Exception:
+                    pass
+            if p_frame.exists() and p_frame.stat().st_size > 0:
+                thumb_url = f"http://localhost:8000/media/projects/{c.project_id}/preview_frames/clip_{c.index}_vertical.jpg"
+            else:
+                p_src = pdir / "preview_frames" / f"clip_{c.index}_source_1.jpg"
+                if p_src.exists() and p_src.stat().st_size > 0:
+                    thumb_url = f"http://localhost:8000/media/projects/{c.project_id}/preview_frames/clip_{c.index}_source_1.jpg"
+
         results.append({
             "id": c.id,
             "index": c.index,
@@ -100,6 +126,8 @@ def list_unscheduled_clips(
             "end": c.end,
             "scores": c.scores or {},
             "file_path": c.file_path,
+            "thumbnail_url": thumb_url,
+            "video_url": vid_url,
             "created_at": c.created_at.isoformat() if c.created_at else None,
         })
 
@@ -129,6 +157,32 @@ def get_calendar_events(
             else:
                 proj_title = f"Projet #{proj.id[:6]}"
 
+        thumb_url = None
+        vid_url = None
+        if clip and clip.file_path:
+            pdir = settings.data_dir / "projects" / clip.project_id
+            vid_name = Path(clip.file_path).name
+            vid_url = f"http://localhost:8000/media/projects/{clip.project_id}/clips/{vid_name}"
+            p_frame = pdir / "preview_frames" / f"clip_{clip.index}_vertical.jpg"
+            if not p_frame.exists() and Path(clip.file_path).is_file():
+                import subprocess
+                p_frame.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    subprocess.run(
+                        ["ffmpeg", "-y", "-ss", "1.5", "-i", clip.file_path, "-frames:v", "1", "-q:v", "3", str(p_frame)],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        timeout=4,
+                    )
+                except Exception:
+                    pass
+            if p_frame.exists() and p_frame.stat().st_size > 0:
+                thumb_url = f"http://localhost:8000/media/projects/{clip.project_id}/preview_frames/clip_{clip.index}_vertical.jpg"
+            else:
+                p_src = pdir / "preview_frames" / f"clip_{clip.index}_source_1.jpg"
+                if p_src.exists() and p_src.stat().st_size > 0:
+                    thumb_url = f"http://localhost:8000/media/projects/{clip.project_id}/preview_frames/clip_{clip.index}_source_1.jpg"
+
         events.append({
             "id": p.id,
             "clip_id": p.clip_id,
@@ -137,6 +191,8 @@ def get_calendar_events(
             "clip_title": clip.title if clip else None,
             "clip_hook": clip.hook if clip else None,
             "clip_duration": round(clip.end - clip.start, 1) if clip and clip.end and clip.start else 0,
+            "thumbnail_url": thumb_url,
+            "video_url": vid_url,
             "platform": p.platform,
             "account_id": p.account_id,
             "account_name": account.name if account else "Compte",
