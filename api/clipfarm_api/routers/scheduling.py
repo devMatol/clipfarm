@@ -205,6 +205,28 @@ def generate_predictive_schedule(
                 except Exception:
                     pass
 
+        creator_name = ""
+        source_title = ""
+        meta_file = pdir / "metadata.json"
+        if meta_file.exists():
+            try:
+                m = json.loads(meta_file.read_text(encoding="utf-8"))
+                creator_name = m.get("uploader") or m.get("channel") or ""
+                source_title = m.get("title") or ""
+            except Exception:
+                pass
+        if not creator_name or not source_title:
+            info_file = pdir / "source.info.json"
+            if info_file.exists():
+                try:
+                    inf = json.loads(info_file.read_text(encoding="utf-8"))
+                    if not creator_name:
+                        creator_name = inf.get("uploader") or inf.get("channel") or ""
+                    if not source_title:
+                        source_title = inf.get("title") or inf.get("fulltitle") or ""
+                except Exception:
+                    pass
+
         clips_data.append({
             "id": c.id,
             "index": c.index,
@@ -213,6 +235,8 @@ def generate_predictive_schedule(
             "reason": c.reason,
             "start": c.start,
             "end": c.end,
+            "creator_name": creator_name,
+            "source_title": source_title,
             "scores": c.scores or {},
             "transcript": transcript,
         })

@@ -222,3 +222,90 @@ def test_publish_clip_rights_enforcement_and_youtube_upload(client: TestClient, 
     assert pub_entry is not None
     assert pub_entry.status == "published"
     assert pub_entry.metadata_json["title"] == "Action Inouïe"
+
+
+def test_generate_publishing_metadata_multiframe_ground_truth(tmp_path: Path):
+    """Vérifie que la génération de métadonnées intègre les images et le créateur vérifié sans hallucination."""
+    from clipfarm_api.publishing.metadata import generate_publishing_metadata
+
+    # Créer 2 fausses images
+    img1 = tmp_path / "frame1.jpg"
+    img1.write_bytes(b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00`\x00`\x00\x00\xff\xdb\x00C\x00\xff\xd9")
+    img2 = tmp_path / "frame2.jpg"
+    img2.write_bytes(b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00`\x00`\x00\x00\xff\xdb\x00C\x00\xff\xd9")
+
+    mock_llm_response = json.dumps({
+        "title": "Anyme et Mastu dans le défi ultime",
+        "description": "Anyme TV et Mastu relèvent le défi !\n\nUne ambiance de folie.\n\nQuel est votre moment préféré ?",
+        "tags": ["Anyme", "Mastu", "Défi", "Humour"],
+        "hashtags": ["#Shorts", "#Mastu", "#Anyme"]
+    })
+
+    with patch("clipfarm_api.publishing.metadata.ask_gemini", return_value=mock_llm_response) as mock_gemini:
+        res = generate_publishing_metadata(
+            clip_title="Défi Mastu",
+            hook="Regardez ce qui arrive",
+            transcript="On est avec Mastu dans la maison",
+            platform="youtube",
+            image_paths=[img1, img2],
+            creator_name="Anyme TV",
+            source_title="Je REMPLIS ma MAISON de BOULES avec MASTU !",
+        )
+
+        assert mock_gemini.called
+        call_args = mock_gemini.call_args
+        prompt_sent = call_args[0][0]
+        images_sent = call_args[1].get("images_b64")
+
+        # Vérifier que le créateur et le titre sont bien dans le prompt
+        assert "Anyme TV" in prompt_sent
+        assert "Je REMPLIS ma MAISON de BOULES avec MASTU !" in prompt_sent
+        assert "INTERDICTION ABSOLUE ET FORMELLE d'inventer des créateurs" in prompt_sent
+        assert len(images_sent) == 2
+
+        # Vérifier le résultat
+        assert "Mastu" in res["title"]
+        assert "Anyme" in res["title"]
+        assert "#Shorts" in res["title"]
+
+
+def test_get_clip_metadata_endpoint_reads_source_info(client: TestClient, session: Session, tmp_path: Path):
+    """Vérifie que l'endpoint /clips/{id}/metadata extrait les infos de source.info.json."""
+    p = Project(id="proj_src_meta", status="ready")
+    session.add(p)
+    c = Clip(
+        id="proj_src_meta_1",
+        project_id="proj_src_meta",
+        index=1,
+        start=10.0,
+        end=30.0,
+        title="Moment Drôle",
+        hook="Accroche drôle",
+        file_path=str(tmp_path / "clip.mp4"),
+        status="ready"
+    )
+    session.add(c)
+    session.commit()
+
+    pdir = settings.data_dir / "projects" / "proj_src_meta"
+    pdir.mkdir(parents=True, exist_ok=True)
+    (pdir / "metadata.json").write_text(json.dumps({
+        "uploader": "JoueurDuGrenier",
+        "title": "JDG Hors-Série Jeux en Vrac"
+    }), encoding="utf-8")
+
+    mock_llm_response = json.dumps({
+        "title": "JDG pète un câble sur ce jeu rétro",
+        "description": "Joueur Du Grenier découvre un jeu infâme.\n\nVous vous rappelez de cette pépite ?",
+        "tags": ["JDG", "JoueurDuGrenier", "Retro"],
+        "hashtags": ["#Shorts", "#JDG"]
+    })
+
+    with patch("clipfarm_api.publishing.metadata.ask_gemini", return_value=mock_llm_response) as mock_gemini:
+        res = client.post("/clips/proj_src_meta_1/metadata", json={"platform": "youtube"})
+        assert res.status_code == 200
+        data = res.json()
+        assert "JDG" in data["title"]
+        call_prompt = mock_gemini.call_args[0][0]
+        assert "JoueurDuGrenier" in call_prompt
+

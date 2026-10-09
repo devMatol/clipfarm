@@ -57,6 +57,8 @@ def predict_schedule_with_gemini(
         clips_context.append({
             "id": c.get("id"),
             "index": c.get("index"),
+            "creator": c.get("creator_name", ""),
+            "source_title": c.get("source_title", ""),
             "title": c.get("title", ""),
             "hook": c.get("hook", ""),
             "reason": c.get("reason", ""),
@@ -102,6 +104,9 @@ RÈGLES D'OR DE L'ALGORITHME ET DE LA PSYCHOLOGIE SOCIALE :
    - Assigne à chaque créneau proposé une note prédictive entre 70 et 99 reflétant l'alignement entre la nature du clip et l'état psychologique de l'audience à cette heure-là.
 4. RAISONNEMENT ALGORITHMIQUE :
    - Explique précisément et techniquement en français pourquoi ce moment exact maximise le Hook Rate, l'Average View Duration (AVD) et le partage.
+5. VÉRACITÉ DES PERSONNES & ANTI-HALLUCINATION :
+   - Mentionne uniquement les créateurs et protagonistes réels indiqués dans les données de chaque clip (ex: créateur, titre source).
+   - INTERDICTION STRICTE d'inventer des célébrités non présentes (Michou, Inoxtag, Squeezie...).
 
 Réponds STRICTEMENT sous forme d'un objet JSON valide conforme à cette structure exacte :
 {{

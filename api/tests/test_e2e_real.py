@@ -26,7 +26,7 @@ async def test_real_pipeline_e2e_gpu():
     4. Attente du statut 'ready'
     5. Validation des clips produits et de leurs métadonnées
     """
-    sample_path = Path("engine/tests/golden/gta6_sample_25s.mp4").resolve()
+    sample_path = (Path(__file__).resolve().parents[2] / "engine" / "tests" / "golden" / "gta6_sample_25s.mp4").resolve()
     assert sample_path.exists(), f"Sample source {sample_path} not found"
 
     # Restaurer le vrai engine Postgres et le vrai data_dir pour le test E2E réel

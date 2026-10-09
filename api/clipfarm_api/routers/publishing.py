@@ -12,7 +12,7 @@ from sqlmodel import Session, select
 
 from ..config import settings
 from ..db import get_session
-from ..models import Account, Clip, Publication, PublicationCreate, PublicationOut
+from ..models import Account, Clip, Project, Publication, PublicationCreate, PublicationOut
 from ..publishing.base import PublicationPayload
 from ..publishing.crypto import decrypt_tokens
 from ..publishing.metadata import generate_publishing_metadata
@@ -61,34 +61,107 @@ def get_clip_metadata(
             except Exception:
                 pass
 
-    # Extraire une image représentative du clip pour l'analyse visuelle par IA
-    image_frame_path = None
+    # Récupérer les métadonnées vérifiées de la vidéo source (chaîne, titre original, description)
+    creator_name = ""
+    source_title = ""
+    source_desc = ""
+
+    meta_file = pdir / "metadata.json"
+    if meta_file.exists():
+        try:
+            m = json.loads(meta_file.read_text(encoding="utf-8"))
+            creator_name = m.get("uploader") or m.get("channel") or ""
+            source_title = m.get("title") or ""
+            source_desc = m.get("description") or ""
+        except Exception:
+            pass
+
+    if not creator_name or not source_title:
+        info_file = pdir / "source.info.json"
+        if info_file.exists():
+            try:
+                inf = json.loads(info_file.read_text(encoding="utf-8"))
+                if not creator_name:
+                    creator_name = inf.get("uploader") or inf.get("channel") or ""
+                if not source_title:
+                    source_title = inf.get("title") or inf.get("fulltitle") or ""
+                if not source_desc:
+                    source_desc = inf.get("description") or ""
+            except Exception:
+                pass
+
+    if not source_title:
+        proj = session.get(Project, clip.project_id)
+        if proj:
+            if proj.source_path:
+                source_title = Path(proj.source_path).stem
+            elif proj.source_url:
+                source_title = proj.source_url
+
+    # Extraire plusieurs images représentatives pour analyse visuelle multi-angles par IA
+    image_paths: list[Path] = []
+    frame_dir = pdir / "preview_frames"
+    frame_dir.mkdir(parents=True, exist_ok=True)
+
+    import subprocess
+
+    # 1. Images grand-angle de la vidéo source (capture les personnes, la facecam, le décor réel)
+    source_mp4 = pdir / "source.mp4"
+    if not source_mp4.exists():
+        proj = session.get(Project, clip.project_id)
+        if proj and proj.source_path and Path(proj.source_path).is_file():
+            source_mp4 = Path(proj.source_path)
+
+    if source_mp4.exists() and clip.start is not None and clip.end is not None:
+        duration = max(1.0, clip.end - clip.start)
+        # Échantillonner 3 moments clés : début (20%), milieu (50%), fin (80%)
+        sample_times = [
+            clip.start + duration * 0.2,
+            clip.start + duration * 0.5,
+            clip.start + duration * 0.8,
+        ]
+        for idx, t in enumerate(sample_times, start=1):
+            source_frame = frame_dir / f"clip_{clip.index}_source_{idx}.jpg"
+            if not source_frame.exists() or source_frame.stat().st_size == 0:
+                try:
+                    subprocess.run(
+                        ["ffmpeg", "-y", "-ss", f"{t:.2f}", "-i", str(source_mp4), "-frames:v", "1", "-q:v", "2", str(source_frame)],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        timeout=10,
+                    )
+                except Exception:
+                    pass
+            if source_frame.exists() and source_frame.stat().st_size > 0:
+                image_paths.append(source_frame)
+
+    # 2. Image du clip vertical rendu (capture le cadrage vertical et l'incrustation)
     if clip.file_path and Path(clip.file_path).is_file():
         vid_p = Path(clip.file_path)
-        frame_dir = vid_p.parent / "preview_frames"
-        frame_dir.mkdir(parents=True, exist_ok=True)
-        target_frame = frame_dir / f"clip_{clip.index}_vision.jpg"
-        if not target_frame.exists():
-            import subprocess
+        clip_frame = frame_dir / f"clip_{clip.index}_vertical.jpg"
+        if not clip_frame.exists() or clip_frame.stat().st_size == 0:
             try:
-                mid_s = max(0.5, (clip.end - clip.start) * 0.4)
+                mid_s = max(0.5, (clip.end - clip.start) * 0.4) if clip.end and clip.start else 1.0
                 subprocess.run(
-                    ["ffmpeg", "-y", "-ss", str(mid_s), "-i", str(vid_p), "-frames:v", "1", "-q:v", "2", str(target_frame)],
+                    ["ffmpeg", "-y", "-ss", f"{mid_s:.2f}", "-i", str(vid_p), "-frames:v", "1", "-q:v", "2", str(clip_frame)],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     timeout=10,
                 )
             except Exception:
                 pass
-        if target_frame.exists():
-            image_frame_path = target_frame
+        if clip_frame.exists() and clip_frame.stat().st_size > 0:
+            image_paths.append(clip_frame)
 
     return generate_publishing_metadata(
         clip_title=clip.title,
         hook=clip.hook,
         transcript=transcript,
         platform=req.platform,
-        image_path=image_frame_path,
+        image_paths=image_paths,
+        creator_name=creator_name,
+        source_title=source_title,
+        source_description=source_desc,
         reason=clip.reason,
         scores=clip.scores,
     )
