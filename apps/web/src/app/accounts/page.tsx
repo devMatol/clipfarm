@@ -17,26 +17,22 @@ import {
   Clock,
   FlaskConical,
   Info,
-  Server,
-  Share2,
   Sparkles,
+  KeyRound,
+  Check,
 } from "lucide-react";
 
 export default function AccountsPage() {
   const queryClient = useQueryClient();
-  const [connecting, setConnecting] = useState(false);
+  const [connectingYouTube, setConnectingYouTube] = useState(false);
+  const [connectingTikTok, setConnectingTikTok] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  const [showPostizGuide, setShowPostizGuide] = useState(false);
+  const [showConfigGuide, setShowConfigGuide] = useState(false);
 
   const { data: accounts, isLoading } = useQuery({
     queryKey: ["accounts"],
     queryFn: () => api.getAccounts(),
-  });
-
-  const { data: postizStatus, refetch: refetchPostizStatus } = useQuery({
-    queryKey: ["postizStatus"],
-    queryFn: () => api.getPostizStatus(),
   });
 
   const deleteMutation = useMutation({
@@ -70,27 +66,9 @@ export default function AccountsPage() {
     },
   });
 
-  const syncPostizMutation = useMutation({
-    mutationFn: () => api.syncPostiz(),
-    onSuccess: (synced) => {
-      queryClient.invalidateQueries({ queryKey: ["accounts"] });
-      refetchPostizStatus();
-      setErrorMsg(null);
-      if (synced.length === 0) {
-        setSuccessMsg("Postiz synchronisé : aucun nouveau canal détecté.");
-      } else {
-        setSuccessMsg(`Succès : ${synced.length} canal(aux) synchronisé(s) depuis Postiz !`);
-      }
-      setTimeout(() => setSuccessMsg(null), 4000);
-    },
-    onError: (err: any) => {
-      setErrorMsg("Échec de la synchronisation Postiz : " + (err.message || String(err)));
-    },
-  });
-
   const handleConnectYouTube = async () => {
     try {
-      setConnecting(true);
+      setConnectingYouTube(true);
       setErrorMsg(null);
       const res = await api.getYouTubeConnectUrl();
       if (res.auth_url) {
@@ -98,7 +76,21 @@ export default function AccountsPage() {
       }
     } catch (err: any) {
       setErrorMsg(err.message || "Impossible de démarrer la connexion YouTube.");
-      setConnecting(false);
+      setConnectingYouTube(false);
+    }
+  };
+
+  const handleConnectTikTok = async () => {
+    try {
+      setConnectingTikTok(true);
+      setErrorMsg(null);
+      const res = await api.getTikTokConnectUrl();
+      if (res.auth_url) {
+        window.location.href = res.auth_url;
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || "Impossible de démarrer la connexion TikTok.");
+      setConnectingTikTok(false);
     }
   };
 
@@ -131,20 +123,73 @@ export default function AccountsPage() {
     }
   };
 
-  const hasTikTokAccount = accounts?.some((a) => a.platform === "tiktok");
-
   return (
     <div className="space-y-8 max-w-6xl">
       {/* En-tête */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-3">
-          <span>Comptes & Réseaux Sociaux</span>
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground max-w-3xl leading-relaxed">
-          Gère tes comptes de publication pour YouTube Shorts, TikTok et Instagram. Tes jetons d&apos;authentification
-          sont chiffrés en local (AES-128-CBC Fernet) et ne quittent jamais ton ordinateur.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-3">
+            <span>Comptes & Réseaux Sociaux</span>
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground max-w-3xl leading-relaxed">
+            Connecte directement tes comptes YouTube Shorts et TikTok. 100% gratuit, sans abonnement tiers ni intermédiaire.
+            Tes jetons d&apos;authentification sont chiffrés localement (AES-128-CBC) et restent sur ta machine.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setShowConfigGuide(!showConfigGuide)}
+          className="px-3.5 py-2 rounded-xl border border-border/80 bg-zinc-900/60 text-zinc-300 hover:text-white hover:border-zinc-700 text-xs font-semibold flex items-center gap-2 self-start shrink-0 transition"
+        >
+          <KeyRound className="w-4 h-4 text-purple-400" />
+          <span>{showConfigGuide ? "Masquer la config" : "Comment configurer les clés gratuites"}</span>
+        </button>
       </div>
+
+      {/* Guide configuration gratuite (accordéon) */}
+      {showConfigGuide && (
+        <div className="p-5 rounded-2xl bg-zinc-950/80 border border-purple-500/20 text-xs text-zinc-300 space-y-4 animate-in fade-in">
+          <div className="flex items-center gap-2 text-purple-300 font-bold text-sm">
+            <Sparkles className="w-4 h-4 text-purple-400" />
+            <span>Guide d&apos;obtention des clés API gratuites</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-4 rounded-xl bg-zinc-900/70 border border-zinc-800 space-y-2">
+              <div className="flex items-center gap-2 font-bold text-red-400">
+                <YouTubeIcon className="w-4 h-4" />
+                <span>YouTube Data API v3 (Gratuit)</span>
+              </div>
+              <p className="text-zinc-400 text-[11px] leading-relaxed">
+                1. Va sur <a href="https://console.cloud.google.com" target="_blank" rel="noreferrer" className="text-purple-400 underline">Google Cloud Console</a>.<br />
+                2. Active l&apos;API <strong>YouTube Data API v3</strong>.<br />
+                3. Crée des identifiants OAuth Client ID (Application Web).<br />
+                4. Ajoute l&apos;URI de redirection : <code>http://localhost:3000/accounts/callback</code>.<br />
+                5. Renseigne dans le fichier <code>.env</code> :<br />
+                <code className="text-zinc-200">GOOGLE_CLIENT_ID=...</code><br />
+                <code className="text-zinc-200">GOOGLE_CLIENT_SECRET=...</code>
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-zinc-900/70 border border-zinc-800 space-y-2">
+              <div className="flex items-center gap-2 font-bold text-cyan-400">
+                <TikTokIcon className="w-4 h-4" />
+                <span>TikTok Content Posting API (Gratuit)</span>
+              </div>
+              <p className="text-zinc-400 text-[11px] leading-relaxed">
+                1. Va sur <a href="https://developers.tiktok.com" target="_blank" rel="noreferrer" className="text-cyan-400 underline">TikTok for Developers</a>.<br />
+                2. Crée une application gratuite et active <strong>Content Posting API</strong>.<br />
+                3. Ajoute l&apos;URI de redirection : <code>http://localhost:3000/accounts/callback</code>.<br />
+                4. Renseigne dans le fichier <code>.env</code> :<br />
+                <code className="text-zinc-200">TIKTOK_CLIENT_KEY=...</code><br />
+                <code className="text-zinc-200">TIKTOK_CLIENT_SECRET=...</code><br />
+                <em>(Pour tester sans clé, utilise simplement le bouton « Ajouter un compte Démo » ci-dessous !)</em>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Messages de statut / feedback */}
       {errorMsg && (
@@ -163,85 +208,6 @@ export default function AccountsPage() {
           <p className="font-medium text-xs sm:text-sm">{successMsg}</p>
         </div>
       )}
-
-      {/* BANNIÈRE HUB POSTIZ (Intégration Intelligente) */}
-      <div className="p-5 rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-cyan-950/20 via-zinc-950/40 to-purple-950/20 backdrop-blur-sm space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0">
-              <Share2 className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-bold text-white text-base">Passerelle Postiz (TikTok, Instagram, Multi-réseaux)</h3>
-                {postizStatus?.reachable && postizStatus?.authenticated ? (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    🟢 Actif & Connecté
-                  </span>
-                ) : postizStatus?.reachable ? (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                    🟡 Service en ligne (Clé API requise)
-                  </span>
-                ) : (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-zinc-800 text-zinc-400 border border-zinc-700">
-                    ⚪ Service autonome optionnel
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-zinc-400 mt-0.5 leading-relaxed">
-                Postiz permet de relier TikTok sans complexité de développement ni audit bloquant.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => setShowPostizGuide(!showPostizGuide)}
-              className="px-3 py-1.5 rounded-lg border border-border/70 bg-zinc-900/60 text-zinc-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition"
-            >
-              <Info className="w-3.5 h-3.5 text-cyan-400" />
-              <span>{showPostizGuide ? "Masquer le guide" : "Comment lancer Postiz"}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => syncPostizMutation.mutate()}
-              disabled={syncPostizMutation.isPending}
-              className="px-3.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-cyan-900/30 transition disabled:opacity-50"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${syncPostizMutation.isPending ? "animate-spin" : ""}`} />
-              <span>Synchroniser les canaux Postiz</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Guide déploiement Postiz accordéon */}
-        {showPostizGuide && (
-          <div className="p-4 rounded-xl bg-zinc-950/80 border border-cyan-500/20 text-xs text-zinc-300 space-y-3 animate-in fade-in">
-            <p className="font-semibold text-cyan-300 flex items-center gap-1.5">
-              <Server className="w-4 h-4" />
-              Démarrer Postiz en local en 1 commande :
-            </p>
-            <div className="p-2.5 rounded-lg bg-zinc-900 font-mono text-[11px] text-zinc-200 border border-zinc-800 select-all">
-              docker compose -f infra/postiz/docker-compose.yml up -d
-            </div>
-            <ol className="list-decimal list-inside space-y-1 text-zinc-400 text-[11px]">
-              <li>
-                Ouvrez <a href="http://localhost:4200" target="_blank" rel="noreferrer" className="text-cyan-400 underline font-mono">http://localhost:4200</a> et créez votre profil.
-              </li>
-              <li>
-                Allez dans <strong>Integrations</strong> pour relier votre compte TikTok (ou Instagram).
-              </li>
-              <li>
-                Dans <strong>Settings &gt; API</strong>, copiez votre clé API et ajoutez dans <code>.env</code> : <code>POSTIZ_API_KEY=votre_cle</code>.
-              </li>
-              <li>
-                Revenez ici et cliquez sur <strong>Synchroniser les canaux Postiz</strong> !
-              </li>
-            </ol>
-          </div>
-        )}
-      </div>
 
       {/* Liste des comptes connectés */}
       <section className="space-y-4">
@@ -319,19 +285,19 @@ export default function AccountsPage() {
 
       {/* Ajouter un compte */}
       <section className="space-y-4">
-        <h2 className="text-lg font-semibold text-white">Ajouter un compte</h2>
+        <h2 className="text-lg font-semibold text-white">Ajouter un compte (100% Gratuit)</h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Carte YouTube Shorts */}
-          <div className="p-6 rounded-xl border border-border/60 bg-gradient-to-b from-card/80 to-card/40 flex flex-col justify-between gap-6 transition hover:border-red-500/30">
+          <div className="p-6 rounded-2xl border border-red-500/20 bg-gradient-to-b from-red-950/10 to-card/40 flex flex-col justify-between gap-6 transition hover:border-red-500/40">
             <div className="space-y-3">
-              <div className="w-10 h-10 rounded-lg bg-red-600/10 border border-red-500/20 text-red-400 flex items-center justify-center">
-                <YouTubeIcon className="w-6 h-6" />
+              <div className="w-12 h-12 rounded-xl bg-red-600/10 border border-red-500/20 text-red-400 flex items-center justify-center">
+                <YouTubeIcon className="w-7 h-7" />
               </div>
               <div>
-                <h3 className="font-semibold text-white text-base">YouTube Shorts</h3>
+                <h3 className="font-bold text-white text-lg">YouTube Shorts</h3>
                 <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                  Publication et programmation directe sur ta chaîne YouTube avec balises #Shorts et choix de visibilité.
+                  Publication directe sur ta chaîne YouTube avec balises #Shorts, choix de visibilité (Public / Non répertorié / Privé) et validation stricte.
                 </p>
               </div>
             </div>
@@ -339,18 +305,18 @@ export default function AccountsPage() {
             <div className="space-y-2">
               <button
                 onClick={handleConnectYouTube}
-                disabled={connecting}
-                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-red-600 hover:bg-red-500 text-white font-medium text-sm transition active:scale-95 disabled:opacity-50"
+                disabled={connectingYouTube}
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-semibold text-sm transition active:scale-95 disabled:opacity-50 shadow-lg shadow-red-900/20"
               >
-                {connecting ? (
+                {connectingYouTube ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Connexion...</span>
+                    <span>Connexion YouTube...</span>
                   </>
                 ) : (
                   <>
                     <PlusCircle className="w-4 h-4" />
-                    <span>Connecter YouTube (OAuth)</span>
+                    <span>Connecter YouTube (OAuth Officiel)</span>
                   </>
                 )}
               </button>
@@ -358,92 +324,59 @@ export default function AccountsPage() {
                 type="button"
                 onClick={() => createTestMutation.mutate("youtube")}
                 disabled={createTestMutation.isPending}
-                className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg border border-border/80 text-muted-foreground hover:text-white hover:bg-zinc-800 text-xs font-medium transition"
+                className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border border-border/80 text-muted-foreground hover:text-white hover:bg-zinc-800 text-xs font-medium transition"
               >
                 <FlaskConical className="w-3.5 h-3.5 text-purple-400" />
-                <span>Ajouter un compte Démo (Test local)</span>
+                <span>Ajouter un compte Démo YouTube (Test local)</span>
               </button>
             </div>
           </div>
 
-          {/* Carte TikTok (via Postiz) */}
-          <div className="p-6 rounded-xl border border-cyan-500/30 bg-gradient-to-b from-cyan-950/20 to-card/40 flex flex-col justify-between gap-6 transition hover:border-cyan-500/60 shadow-lg shadow-cyan-950/20">
+          {/* Carte TikTok Direct */}
+          <div className="p-6 rounded-2xl border border-cyan-500/30 bg-gradient-to-b from-cyan-950/20 to-card/40 flex flex-col justify-between gap-6 transition hover:border-cyan-500/60 shadow-lg shadow-cyan-950/20">
             <div className="space-y-3">
-              <div className="w-10 h-10 rounded-lg bg-cyan-600/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center">
-                <TikTokIcon className="w-6 h-6" />
+              <div className="w-12 h-12 rounded-xl bg-cyan-600/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center">
+                <TikTokIcon className="w-7 h-7" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="font-semibold text-white text-base">TikTok</h3>
+                  <h3 className="font-bold text-white text-lg">TikTok</h3>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30">
-                    Via Postiz
+                    Direct & Gratuit
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                  Publication et programmation automatique vers TikTok. Gère le consentement, les hashtags viraux (#PourToi) et l&apos;audience.
+                  Connexion directe via l&apos;API officielle TikTok Content Posting. 100% gratuit, sans passerelle payante. Téléversement binaire direct et planification dans le calendrier.
                 </p>
               </div>
             </div>
 
             <div className="space-y-2">
-              <a
-                href="http://localhost:4200/integrations"
-                target="_blank"
-                rel="noreferrer"
-                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-medium text-sm transition active:scale-95"
+              <button
+                onClick={handleConnectTikTok}
+                disabled={connectingTikTok}
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-sm transition active:scale-95 disabled:opacity-50 shadow-lg shadow-cyan-900/30"
               >
-                <ExternalLink className="w-4 h-4" />
-                <span>Connecter TikTok dans Postiz</span>
-              </a>
+                {connectingTikTok ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Connexion TikTok...</span>
+                  </>
+                ) : (
+                  <>
+                    <PlusCircle className="w-4 h-4" />
+                    <span>Connecter TikTok (OAuth Direct)</span>
+                  </>
+                )}
+              </button>
               <button
                 type="button"
                 onClick={() => createTestMutation.mutate("tiktok")}
                 disabled={createTestMutation.isPending}
-                className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg border border-border/80 text-muted-foreground hover:text-white hover:bg-zinc-800 text-xs font-medium transition"
+                className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border border-border/80 text-muted-foreground hover:text-white hover:bg-zinc-800 text-xs font-medium transition"
               >
                 <FlaskConical className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Ajouter un compte Démo TikTok</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Carte Instagram Reels (via Postiz) */}
-          <div className="p-6 rounded-xl border border-border/60 bg-gradient-to-b from-card/80 to-card/40 flex flex-col justify-between gap-6 transition hover:border-pink-500/30">
-            <div className="space-y-3">
-              <div className="w-10 h-10 rounded-lg bg-pink-600/10 border border-pink-500/20 text-pink-400 flex items-center justify-center font-bold text-xs">
-                IG
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-semibold text-white text-base">Instagram Reels</h3>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-pink-500/10 text-pink-400 border border-pink-500/20">
-                    Via Postiz
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                  Meta Graph API via Postiz pour Reels avec conteneurs vidéo et partage dans le fil principal.
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <a
-                href="http://localhost:4200/integrations"
-                target="_blank"
-                rel="noreferrer"
-                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white font-medium text-sm transition"
-              >
-                <ExternalLink className="w-4 h-4" />
-                <span>Connecter Instagram dans Postiz</span>
-              </a>
-              <button
-                type="button"
-                onClick={() => createTestMutation.mutate("instagram")}
-                disabled={createTestMutation.isPending}
-                className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg border border-border/80 text-muted-foreground hover:text-white hover:bg-zinc-800 text-xs font-medium transition"
-              >
-                <FlaskConical className="w-3.5 h-3.5 text-pink-400" />
-                <span>Ajouter un compte Démo Instagram</span>
+                <span>Ajouter un compte Démo TikTok (Test local)</span>
               </button>
             </div>
           </div>
@@ -454,11 +387,11 @@ export default function AccountsPage() {
       <div className="p-5 rounded-xl border border-purple-500/20 bg-purple-950/10 text-xs text-purple-200/80 flex items-start gap-3">
         <ShieldCheck className="w-5 h-5 text-purple-400 shrink-0 mt-0.5" />
         <div className="space-y-1">
-          <p className="font-semibold text-purple-300">Architecture locale &amp; isolation stricte</p>
+          <p className="font-semibold text-purple-300">Architecture 100% Locale &amp; Données Protégées</p>
           <p className="leading-relaxed">
-            ClipFarm communique avec Postiz exclusivement par son API REST locale. Aucun code externe AGPL n&apos;est
-            intégré au moteur. Vos jetons restent chiffrés en AES-128-CBC sur votre machine, et vos vidéos sont
-            automatiquement nettoyées de leurs métadonnées sensibles (GPS, auteur) avant tout upload.
+            ClipFarm communique directement avec les serveurs officiels de YouTube et TikTok depuis ton ordinateur.
+            Aucun intermédiaire ni abonnement payant. Tes jetons d&apos;accès OAuth sont chiffrés en local (AES-128-CBC)
+            avec ta clé secrète, et tes vidéos sont automatiquement nettoyées de leurs métadonnées personnelles (GPS, modèle caméra) avant toute publication.
           </p>
         </div>
       </div>

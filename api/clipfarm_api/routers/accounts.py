@@ -10,6 +10,7 @@ from ..config import settings
 from ..db import get_session
 from ..models import Account, AccountOut
 from ..publishing.crypto import decrypt_tokens, encrypt_tokens
+from ..publishing.tiktok import TikTokPublisher
 from ..publishing.youtube import YouTubePublisher
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
@@ -195,6 +196,73 @@ async def youtube_oauth_callback(
         acc = Account(
             id=acc_id,
             platform="youtube",
+            platform_account_id=info.platform_account_id,
+            name=info.name,
+            avatar_url=info.avatar_url,
+            encrypted_tokens=encrypted_toks,
+            expires_at=info.expires_at,
+            status="connected",
+        )
+        session.add(acc)
+        session.commit()
+        session.refresh(acc)
+
+    return AccountOut(
+        id=acc.id,
+        platform=acc.platform,
+        platform_account_id=acc.platform_account_id,
+        name=acc.name,
+        avatar_url=acc.avatar_url,
+        expires_at=acc.expires_at,
+        status=acc.status,
+        created_at=acc.created_at,
+    )
+
+
+@router.get("/connect/tiktok")
+def get_tiktok_auth_url(
+    redirect_uri: str = Query("http://localhost:3000/accounts/callback"),
+) -> dict[str, str]:
+    """Génère l'URL d'autorisation TikTok OAuth."""
+    publisher = TikTokPublisher()
+    try:
+        url = publisher.get_auth_url(redirect_uri=redirect_uri)
+        return {"auth_url": url, "platform": "tiktok"}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/connect/tiktok/callback", response_model=AccountOut, status_code=status.HTTP_201_CREATED)
+async def tiktok_oauth_callback(
+    req: OAuthCallbackRequest,
+    session: Session = Depends(get_session),
+) -> AccountOut:
+    """Échange le code OAuth, chiffre les jetons et enregistre le compte TikTok."""
+    publisher = TikTokPublisher()
+    try:
+        info = await publisher.connect(code=req.code, redirect_uri=req.redirect_uri)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Échec de connexion TikTok : {exc}")
+
+    acc_id = f"tt_{info.platform_account_id}"
+    encrypted_toks = encrypt_tokens(info.tokens)
+
+    existing = session.get(Account, acc_id)
+    if existing:
+        existing.name = info.name
+        existing.avatar_url = info.avatar_url
+        existing.encrypted_tokens = encrypted_toks
+        existing.expires_at = info.expires_at
+        existing.status = "connected"
+        existing.updated_at = datetime.now(timezone.utc)
+        session.add(existing)
+        session.commit()
+        session.refresh(existing)
+        acc = existing
+    else:
+        acc = Account(
+            id=acc_id,
+            platform="tiktok",
             platform_account_id=info.platform_account_id,
             name=info.name,
             avatar_url=info.avatar_url,

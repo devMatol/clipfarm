@@ -29,9 +29,12 @@ function CallbackContent() {
       return;
     }
 
-    // Appel API pour finaliser l'échange de jetons et enregistrer le compte
-    api
-      .connectYouTubeCallback(code, state || undefined)
+    const isTikTok = state?.includes("tiktok") || searchParams.get("platform") === "tiktok";
+    const connectPromise = isTikTok
+      ? api.connectTikTokCallback(code, state || undefined)
+      : api.connectYouTubeCallback(code, state || undefined);
+
+    connectPromise
       .then((account) => {
         setStatus("success");
         setTimeout(() => {

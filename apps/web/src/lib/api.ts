@@ -187,6 +187,30 @@ export const api = {
     });
   },
 
+  getTikTokConnectUrl: (redirectUri?: string) => {
+    const callbackUri =
+      redirectUri ||
+      (typeof window !== "undefined"
+        ? `${window.location.origin}/accounts/callback`
+        : "http://localhost:3000/accounts/callback");
+    return fetchApi<{ auth_url: string; state?: string }>(
+      `/accounts/connect/tiktok?redirect_uri=${encodeURIComponent(callbackUri)}`
+    );
+  },
+
+  connectTikTokCallback: (code: string, state?: string, redirectUri?: string) => {
+    const callbackUri =
+      redirectUri ||
+      (typeof window !== "undefined"
+        ? `${window.location.origin}/accounts/callback`
+        : "http://localhost:3000/accounts/callback");
+    return fetchApi<Account>("/accounts/connect/tiktok/callback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, state, redirect_uri: callbackUri }),
+    });
+  },
+
   deleteAccount: (id: string) =>
     fetchApi<{ ok: boolean; message: string }>(`/accounts/${id}`, {
       method: "DELETE",

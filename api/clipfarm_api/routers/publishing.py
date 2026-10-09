@@ -16,6 +16,7 @@ from ..models import Account, Clip, Project, Publication, PublicationCreate, Pub
 from ..publishing.base import PublicationPayload
 from ..publishing.crypto import decrypt_tokens
 from ..publishing.metadata import generate_publishing_metadata
+from ..publishing.tiktok import TikTokPublisher
 from ..publishing.youtube import YouTubePublisher
 
 router = APIRouter(tags=["publishing"])
@@ -197,7 +198,15 @@ def validate_publication_payload(
             "errors": res.errors,
             "warnings": res.warnings,
         }
-    elif req.platform in ("tiktok", "postiz", "instagram"):
+    elif req.platform == "tiktok":
+        publisher = TikTokPublisher()
+        res = publisher.validate(payload, video_path)
+        return {
+            "valid": res.valid,
+            "errors": res.errors,
+            "warnings": res.warnings,
+        }
+    elif req.platform in ("postiz", "instagram"):
         from ..publishing.postiz import PostizPublisher
         publisher = PostizPublisher()
         res = publisher.validate(payload, video_path)
@@ -271,7 +280,9 @@ async def publish_clip(
     # Vérifier l'adaptateur
     if req.platform == "youtube":
         publisher = YouTubePublisher()
-    elif req.platform in ("tiktok", "postiz", "instagram"):
+    elif req.platform == "tiktok":
+        publisher = TikTokPublisher()
+    elif req.platform in ("postiz", "instagram"):
         from ..publishing.postiz import PostizPublisher
         publisher = PostizPublisher()
     else:
